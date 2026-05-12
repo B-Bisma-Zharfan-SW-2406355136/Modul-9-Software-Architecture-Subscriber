@@ -14,3 +14,7 @@
     </ul>
 </li>
 </ol>
+
+![slow](assets/images/subscriber_simulate_slow.png)
+
+Jumlah total pesan yang mengantri adalah sampai 2 karena publisher mengirim pesan lebih cepat daripada subscriber dapat memprosesnya. Subscriber memiliki jeda 1 detik (thread::sleep) untuk setiap pesan, sehingga ketika subscriber sedang memproses satu pesan, publisher sudah mengirimkan banyak pesan baru secara bersamaan, menyebabkan pesan-pesan tersebut menumpuk sementara di queue sebelum akhirnya diproses satu per satu oleh subscriber.
