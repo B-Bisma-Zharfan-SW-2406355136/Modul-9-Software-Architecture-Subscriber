@@ -18,3 +18,17 @@
 ![slow](assets/images/subscriber_simulate_slow.png)
 
 Jumlah total pesan yang mengantri adalah sampai 2 karena publisher mengirim pesan lebih cepat daripada subscriber dapat memprosesnya. Subscriber memiliki jeda 1 detik (thread::sleep) untuk setiap pesan, sehingga ketika subscriber sedang memproses satu pesan, publisher sudah mengirimkan banyak pesan baru secara bersamaan, menyebabkan pesan-pesan tersebut menumpuk sementara di queue sebelum akhirnya diproses satu per satu oleh subscriber.
+
+![faster](assets/images/subscriber_simulate_faster.png)
+
+![faster 2](assets/images/subscriber_simulate_faster_2.png)
+
+Ketika menjalankan beberapa subscriber sekaligus, spike pada grafik RabbitMQ turun lebih cepat dibandingkan hanya dengan satu subscriber. Hal ini terjadi karena pesan-pesan di queue diproses secara paralel oleh beberapa subscriber secara bersamaan (load balancing). Misalnya dengan 3 subscriber, jika publisher mengirim 5 pesan, masing-masing subscriber akan mendapat bagian pesan yang berbeda sehingga waktu pemrosesan total menjadi ~3x lebih cepat dibanding hanya 1 subscriber.
+
+Setelah memperhatikan kode pada *publisher* dan *subscriber*, saya menemukan beberapa area yang perlu diperbaiki (*bad practices*):
+
+1. **Penamaan Variabel yang Menyesatkan:** Di dalam *subscriber*, deklarasi `let ten_milis = time::Duration::from_millis(1000);` sangat membingungkan. Angka 1000 milidetik sebenarnya adalah 1 detik, bukan 10 milidetik.
+2. **Variabel yang Tidak Terpakai:** Variabel `let now = time::Instant::now();` dideklarasikan tetapi tidak pernah digunakan sama sekali (misalnya untuk menghitung lama waktu eksekusi).
+3. **Busy Waiting yang Menguras CPU:** Kode `loop {}` di akhir fungsi `main` pada *subscriber* menciptakan perulangan tak terbatas yang kosong. Ini akan memaksa CPU bekerja 100% tanpa alasan yang jelas. Jauh lebih baik menggunakan `std::thread::park()` atau menambahkan jeda waktu singkat (seperti `thread::sleep`) di dalam *loop* tersebut agar CPU bisa "bernapas".
+4. **Penanganan Error yang Diabaikan (Silent Failure):** Penggunaan `_ = listener.listen(...)` dan `_ = p.publish_event(...)` berarti program sengaja mengabaikan potensi *error*. Jika terjadi kegagalan (misalnya koneksi terputus), program akan diam saja tanpa memberikan pesan *error* apa pun di terminal.
+5. **Konfigurasi Hardcode (Magic Strings):** Teks seperti URL koneksi AMQP (`"amqp://guest:guest@localhost:5672"`) dan nama *event* (`"user_created"`) ditulis langsung di dalam kode di banyak tempat. Sebaiknya teks-teks ini dipindahkan ke dalam *environment variables* (file `.env`) atau variabel konstanta agar lebih rapi dan menghindari *typo*.
